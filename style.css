@@ -11,6 +11,9 @@ body {
 
 main { width: min(850px, calc(100% - 32px)); margin: 0 auto; padding: 54px 0; }
 header { margin-bottom: 26px; }
+.header-top, #languages { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.header-top { justify-content: space-between; }
+#languages { margin-inline-start: auto; }
 header p { margin: 6px 0 0; color: #475e82; }
 header .eyebrow { color: #2059bd; font-size: .85rem; font-weight: 700; letter-spacing: .16em; }
 h1 { margin: 0; font-size: clamp(2.25rem, 6vw, 3.5rem); }
@@ -34,7 +37,7 @@ h2 { margin: 0; font-size: 1.2rem; }
 .form-field label { color: #475e82; font-size: .85rem; }
 #clear-due-date { justify-self: end; }
 input, select, button { font: inherit; }
-#task-title, #task-priority, #task-due-date {
+#task-title, #task-priority, #task-due-date, #source-language {
   width: 100%;
   min-width: 0;
   min-height: 44px;
@@ -61,6 +64,7 @@ button:hover { background: #e1edff; }
 :focus-visible { outline: 3px solid #3882e8; outline-offset: 3px; }
 
 .list-header { justify-content: space-between; flex-wrap: wrap; margin-top: 24px; padding-top: 22px; border-top: 1px solid #e1e9f6; }
+.filters { flex-wrap: wrap; }
 ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
 li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid #e1e9f6; border-radius: 12px; }
 .task-label { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; min-height: 44px; cursor: pointer; }
@@ -69,6 +73,7 @@ li { display: flex; align-items: center; justify-content: space-between; gap: 12
 .task-name { white-space: pre-wrap; }
 .task-label input:checked + .task-details .task-name { color: #506480; text-decoration: line-through; }
 .task-date { color: #475e82; font-size: .85rem; }
+.translation-note { color: #475e82; font-size: .85rem; }
 .date-overdue { color: #9f2037; font-weight: 700; }
 .date-today { color: #854600; font-weight: 700; }
 .actions { flex: none; }
