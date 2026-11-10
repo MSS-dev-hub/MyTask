@@ -1,6 +1,8 @@
 const storageKey = "mytask.tasks.v1";
 const form = document.querySelector("#task-form");
 const titleInput = document.querySelector("#task-title");
+const dueDateInput = document.querySelector("#task-due-date");
+const clearDueDateButton = document.querySelector("#clear-due-date");
 const priorityInput = form.elements.namedItem("priority");
 const formTitle = document.querySelector("#form-title");
 const submitButton = document.querySelector("#submit-task");
@@ -64,14 +66,23 @@ function setEditing(task) {
   editingTask = task;
   const isEditing = task !== null;
   formTitle.textContent = isEditing ? "编辑任务" : "添加新任务";
-  submitButton.textContent = isEditing ? "保存修改" : "＋ 添加任务";
+  submitButton.textContent = isEditing ? "保存修改" : "添加任务";
   cancelButton.hidden = !isEditing;
+  clearDueDateButton.hidden = !isEditing;
   titleInput.value = task?.title ?? "";
   priorityInput.value = task?.priority ?? defaultPriority;
+  dueDateInput.value = task?.dueDate ?? "";
   titleInput.setCustomValidity("");
 }
 
-function createTaskRow(task) {
+function localDateString(date) {
+  const year = String(date.getFullYear()).padStart(4, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
+function createTaskRow(task, today) {
   const row = document.createElement("li");
   const label = document.createElement("label");
   label.className = "task-label";
@@ -79,9 +90,27 @@ function createTaskRow(task) {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = task.done;
+  const details = document.createElement("span");
+  details.className = "task-details";
   const name = document.createElement("span");
+  name.className = "task-name";
   name.textContent = task.title;
-  label.append(checkbox, name);
+  details.append(name);
+  if (task.dueDate) {
+    const date = document.createElement("time");
+    date.className = "task-date";
+    date.dateTime = task.dueDate;
+    date.textContent = "截止日期：" + task.dueDate;
+    if (!task.done && task.dueDate < today) {
+      date.classList.add("date-overdue");
+      date.textContent += " · 已逾期";
+    } else if (!task.done && task.dueDate === today) {
+      date.classList.add("date-today");
+      date.textContent += " · 今天到期";
+    }
+    details.append(date);
+  }
+  label.append(checkbox, details);
 
   const actions = document.createElement("div");
   actions.className = "actions";
@@ -143,12 +172,17 @@ function render() {
   total.textContent = tasks.length;
   completed.textContent = tasks.filter(task => task.done).length;
   const visible = visibleTasks();
-  list.replaceChildren(...visible.map(createTaskRow));
+  const today = localDateString(new Date());
+  list.replaceChildren(...visible.map(task => createTaskRow(task, today)));
   empty.textContent = emptyMessages[currentFilter];
   empty.hidden = visible.length > 0;
 }
 
 titleInput.addEventListener("input", () => titleInput.setCustomValidity(""));
+clearDueDateButton.addEventListener("click", () => {
+  dueDateInput.value = "";
+  dueDateInput.focus();
+});
 titleInput.addEventListener("invalid", () => {
   if (!titleInput.value.trim()) titleInput.setCustomValidity("请输入任务名称。");
 });
@@ -163,9 +197,10 @@ form.addEventListener("submit", event => {
   }
 
   const priority = priorityInput.value;
+  const dueDate = dueDateInput.value || undefined;
   const nextTasks = editingTask
-    ? tasks.map(task => task === editingTask ? { ...task, title, priority } : task)
-    : [...tasks, { title, priority, done: false }];
+    ? tasks.map(task => task === editingTask ? { ...task, title, priority, dueDate } : task)
+    : [...tasks, { title, priority, dueDate, done: false }];
 
   if (saveTasks(nextTasks)) {
     setEditing(null);

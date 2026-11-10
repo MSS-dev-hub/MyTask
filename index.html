@@ -21,21 +21,25 @@
     </section>
 
     <section class="card workspace" aria-labelledby="form-title">
-      <div class="form-heading">
-        <h2 id="form-title">添加新任务</h2>
-        <span class="form-tag" aria-hidden="true">优先级</span>
-      </div>
+      <h2 id="form-title">添加新任务</h2>
       <form id="task-form">
         <input id="task-title" aria-label="任务名称" placeholder="请输入任务名称…" required>
-        <div class="priority-picker" role="group" aria-labelledby="priority-label">
-          <span id="priority-label">选择优先级：</span>
-          <div class="priority-options">
-            <label><input type="radio" name="priority" value="high"><span class="priority priority-high">高</span></label>
-            <label><input type="radio" name="priority" value="medium" checked><span class="priority priority-medium">中</span></label>
-            <label><input type="radio" name="priority" value="low"><span class="priority priority-low">低</span></label>
+        <div class="form-fields">
+          <div class="form-field">
+            <label for="task-priority">优先级</label>
+            <select id="task-priority" name="priority">
+              <option value="high">高</option>
+              <option value="medium" selected>中</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="task-due-date">截止日期</label>
+            <input id="task-due-date" type="date" max="9999-12-31">
           </div>
         </div>
-        <button class="primary" id="submit-task">＋ 添加任务</button>
+        <button id="clear-due-date" type="button" hidden>清除日期</button>
+        <button class="primary" id="submit-task">添加任务</button>
         <button type="button" id="cancel-edit" hidden>取消编辑</button>
       </form>
       <p id="notice" role="status" hidden></p>
