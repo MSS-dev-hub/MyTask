@@ -1,6 +1,7 @@
 const storageKey = "mytask.tasks.v1";
 const form = document.querySelector("#task-form");
 const titleInput = document.querySelector("#task-title");
+const priorityInput = form.elements.namedItem("priority");
 const formTitle = document.querySelector("#form-title");
 const submitButton = document.querySelector("#submit-task");
 const cancelButton = document.querySelector("#cancel-edit");
@@ -10,6 +11,8 @@ const empty = document.querySelector("#empty");
 const notice = document.querySelector("#notice");
 const total = document.querySelector("#total");
 const completed = document.querySelector("#completed");
+const defaultPriority = "medium";
+const priorityLabels = { high: "高", medium: "中", low: "低" };
 
 const emptyMessages = {
   all: "还没有任务。添加一项开始吧。",
@@ -34,7 +37,10 @@ function loadTasks() {
     )) {
       throw new Error("任务数据格式无效");
     }
-    return saved;
+    return saved.map(task => ({
+      ...task,
+      priority: Object.hasOwn(priorityLabels, task.priority) ? task.priority : defaultPriority
+    }));
   } catch {
     showNotice("无法读取本地任务，请检查浏览器的存储设置。");
     return [];
@@ -57,10 +63,11 @@ function saveTasks(nextTasks) {
 function setEditing(task) {
   editingTask = task;
   const isEditing = task !== null;
-  formTitle.textContent = isEditing ? "编辑任务" : "添加任务";
-  submitButton.textContent = isEditing ? "保存修改" : "添加任务";
+  formTitle.textContent = isEditing ? "编辑任务" : "添加新任务";
+  submitButton.textContent = isEditing ? "保存修改" : "＋ 添加任务";
   cancelButton.hidden = !isEditing;
   titleInput.value = task?.title ?? "";
+  priorityInput.value = task?.priority ?? defaultPriority;
   titleInput.setCustomValidity("");
 }
 
@@ -78,6 +85,10 @@ function createTaskRow(task) {
 
   const actions = document.createElement("div");
   actions.className = "actions";
+
+  const priority = document.createElement("span");
+  priority.className = "priority priority-" + task.priority;
+  priority.textContent = "优先级：" + priorityLabels[task.priority];
 
   const edit = document.createElement("button");
   edit.type = "button";
@@ -117,7 +128,7 @@ function createTaskRow(task) {
     (nextCheckbox ?? filters.querySelector('[aria-pressed="true"]')).focus();
   });
 
-  actions.append(edit, remove);
+  actions.append(priority, edit, remove);
   row.append(label, actions);
   return row;
 }
@@ -151,9 +162,10 @@ form.addEventListener("submit", event => {
     return;
   }
 
+  const priority = priorityInput.value;
   const nextTasks = editingTask
-    ? tasks.map(task => task === editingTask ? { ...task, title } : task)
-    : [...tasks, { title, done: false }];
+    ? tasks.map(task => task === editingTask ? { ...task, title, priority } : task)
+    : [...tasks, { title, priority, done: false }];
 
   if (saveTasks(nextTasks)) {
     setEditing(null);
