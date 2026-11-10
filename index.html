@@ -56,6 +56,11 @@
         <button class="primary" id="submit-task">添加任务</button>
         <button type="button" id="cancel-edit" data-text="cancel" hidden>取消编辑</button>
       </form>
+      <div class="backup-actions">
+        <button id="export-tasks" type="button" data-text="exportTasks">导出任务</button>
+        <button id="import-tasks" type="button" data-text="importTasks">导入任务</button>
+        <input id="backup-file" type="file" accept=".json,application/json" hidden>
+      </div>
       <p id="notice" role="status" hidden></p>
 
       <div class="list-header">

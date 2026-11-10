@@ -1,5 +1,10 @@
 const storageKey = "mytask.tasks.v1";
 const languageKey = "mytask.language";
+const backupVersion = 1;
+const maxBackupBytes = 5 * 1024 * 1024;
+const exportButton = document.querySelector("#export-tasks");
+const importButton = document.querySelector("#import-tasks");
+const backupFile = document.querySelector("#backup-file");
 const form = document.querySelector("#task-form");
 const titleInput = document.querySelector("#task-title");
 const dueDateInput = document.querySelector("#task-due-date");
@@ -17,6 +22,8 @@ const notice = document.querySelector("#notice");
 const total = document.querySelector("#total");
 const completed = document.querySelector("#completed");
 const defaultPriority = "medium";
+const priorities = ["high", "medium", "low"];
+const sourceLanguages = ["zh", "en"];
 const messages = {
   zh: {
     language: "界面语言", eyebrow: "个人工作台", pageTitle: "我的任务",
@@ -35,6 +42,19 @@ const messages = {
     readError: "无法读取本地任务，请检查浏览器的存储设置。",
     saveError: "无法保存这次修改，请检查浏览器的存储设置后重试。",
     languageError: "无法保存语言偏好，下次打开可能恢复为中文。",
+    exportTasks: "导出任务", importTasks: "导入任务",
+    exportSuccess: "已开始下载任务备份。",
+    exportError: "无法导出任务备份，请检查浏览器存储后重试。",
+    importSuccess: "任务导入成功。",
+    importConfirm: count => "将恢复 " + count + " 条任务，并替换当前全部任务。确定继续吗？",
+    fileTooLarge: "备份文件不能超过 5 MiB。",
+    fileReadError: "无法读取所选文件，请重新选择。",
+    invalidJson: "文件不是有效的 JSON。",
+    invalidBackup: "备份格式不正确。请选择 MyTask 备份或旧版任务数组。",
+    unsupportedVersion: "此备份版本暂不支持。",
+    invalidTask: (row, field) => "第 " + row + " 条任务的字段无效：" + field + "。",
+    duplicateId: "备份中有重复的任务 ID。",
+    storageChanged: "另一个页面已修改本地任务。请刷新后重试。",
     translationUnavailable: "自动翻译尚未配置，正在显示原文。",
     translationError: "翻译失败，正在显示原文。"
   },
@@ -55,6 +75,19 @@ const messages = {
     readError: "Could not read local tasks. Check your browser storage settings.",
     saveError: "Could not save this change. Check your browser storage settings and try again.",
     languageError: "Could not save your language preference. The app may reopen in Chinese.",
+    exportTasks: "Export Tasks", importTasks: "Import Tasks",
+    exportSuccess: "The backup download has started.",
+    exportError: "Could not export tasks. Check browser storage and try again.",
+    importSuccess: "Tasks imported successfully.",
+    importConfirm: count => "Restore " + count + " task(s)? This will replace all current tasks.",
+    fileTooLarge: "The backup file must be 5 MiB or smaller.",
+    fileReadError: "Could not read the selected file. Please select it again.",
+    invalidJson: "The file is not valid JSON.",
+    invalidBackup: "Invalid backup format. Select a MyTask backup or a legacy task array.",
+    unsupportedVersion: "This backup version is not supported.",
+    invalidTask: (row, field) => "Invalid field in task " + row + ": " + field + ".",
+    duplicateId: "The backup contains duplicate task IDs.",
+    storageChanged: "Local tasks were changed in another page. Reload and try again.",
     translationUnavailable: "Automatic translation is not configured. Showing the original.",
     translationError: "Translation failed. Showing the original."
   }
@@ -69,19 +102,23 @@ try {
   // Chinese remains available when preferences cannot be read.
 }
 let noticeKey = "";
+let noticeArgs = [];
 let storedTasks;
 let tasks = loadTasks();
 let editingTask = null;
 let currentFilter = "all";
 
-function t(key) {
-  return messages[language][key];
+function t(key, ...args) {
+  const message = messages[language][key];
+  return typeof message === "function" ? message(...args) : message;
 }
 
-function showNotice(key) {
+function showNotice(key, ...args) {
   noticeKey = key;
-  notice.textContent = key ? t(key) : "";
+  noticeArgs = args;
+  notice.textContent = key ? t(key, ...args) : "";
   notice.hidden = !key;
+  notice.dataset.success = String(key === "exportSuccess" || key === "importSuccess");
 }
 
 function detectLanguage(text) {
@@ -108,7 +145,7 @@ function renderLanguage() {
   titleInput.placeholder = t("placeholder");
   if (titleInput.validity.customError) titleInput.setCustomValidity(t("required"));
   renderFormLabels();
-  showNotice(noticeKey);
+  showNotice(noticeKey, ...noticeArgs);
   render();
 }
 
@@ -122,21 +159,51 @@ function loadTasks() {
       throw new Error("任务数据格式无效");
     }
     storedTasks = raw;
-    return saved.map(task => ({
-      ...task,
-      priority: ["high", "medium", "low"].includes(task.priority) ? task.priority : defaultPriority,
-      sourceLanguage: ["zh", "en"].includes(task.sourceLanguage) ? task.sourceLanguage : detectLanguage(task.title),
-      translations: { zh: task.translations?.zh, en: task.translations?.en }
-    }));
+    return normalizeTasks(saved);
   } catch {
     showNotice("readError");
     return [];
   }
 }
 
+function validTaskId(id) {
+  return (typeof id === "string" && id.trim() === id && id.length > 0) || Number.isSafeInteger(id);
+}
+
+function normalizeTasks(saved) {
+  const reservedIds = new Set(saved.filter(task => validTaskId(task.id)).map(task => String(task.id)));
+  const usedIds = new Set();
+  let nextLegacyId = 1;
+  return saved.map(task => {
+    let id = task.id;
+    if (!validTaskId(id) || usedIds.has(String(id))) {
+      do {
+        id = "legacy-" + nextLegacyId++;
+      } while (reservedIds.has(id));
+    }
+    usedIds.add(String(id));
+    return {
+      ...task,
+      id,
+      priority: priorities.includes(task.priority) ? task.priority : defaultPriority,
+      sourceLanguage: sourceLanguages.includes(task.sourceLanguage) ? task.sourceLanguage : detectLanguage(task.title),
+      translations: { ...task.translations }
+    };
+  });
+}
+
+function newTaskId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
 function saveTasks(nextTasks) {
   try {
     if (storedTasks === undefined) throw new Error();
+    if (localStorage.getItem(storageKey) !== storedTasks) {
+      showNotice("storageChanged");
+      return false;
+    }
     const serialized = JSON.stringify(nextTasks);
     localStorage.setItem(storageKey, serialized);
     storedTasks = serialized;
@@ -201,6 +268,124 @@ function localDateString(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return year + "-" + month + "-" + day;
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function validDueDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000")) {
+    return false;
+  }
+  const date = new Date(value + "T00:00:00Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function invalidTaskField(task, legacy) {
+  if (!isRecord(task)) return "task";
+  if ((!legacy || Object.hasOwn(task, "id")) && !validTaskId(task.id)) return "id";
+  if (typeof task.title !== "string" || !task.title.trim()) return "title";
+  if (typeof task.done !== "boolean") return "done";
+  if ((!legacy || Object.hasOwn(task, "priority")) && !priorities.includes(task.priority)) return "priority";
+  if (task.dueDate !== undefined && task.dueDate !== null && task.dueDate !== "" && !validDueDate(task.dueDate)) {
+    return "dueDate";
+  }
+  if (Object.hasOwn(task, "sourceLanguage") && !sourceLanguages.includes(task.sourceLanguage)) {
+    return "sourceLanguage";
+  }
+  if (Object.hasOwn(task, "translations") &&
+      (!isRecord(task.translations) || !Object.values(task.translations).every(value => typeof value === "string"))) {
+    return "translations";
+  }
+  return "";
+}
+
+function validateBackup(data) {
+  const legacy = Array.isArray(data);
+  if (!legacy) {
+    if (!isRecord(data) || !Object.hasOwn(data, "version")) return { error: "invalidBackup" };
+    if (data.version !== backupVersion) return { error: "unsupportedVersion" };
+    if (!Array.isArray(data.tasks) || typeof data.exportedAt !== "string" ||
+        !Number.isFinite(Date.parse(data.exportedAt))) return { error: "invalidBackup" };
+  }
+  const records = legacy ? data : data.tasks;
+  const ids = new Set();
+  for (const [index, task] of records.entries()) {
+    const field = invalidTaskField(task, legacy);
+    if (field) return { error: "invalidTask", args: [index + 1, field] };
+    if (task.id === undefined) continue;
+    const id = String(task.id);
+    if (ids.has(id)) return { error: "duplicateId" };
+    ids.add(id);
+  }
+  return { records: normalizeTasks(records) };
+}
+
+function exportTasks() {
+  try {
+    if (storedTasks === undefined) throw new Error();
+    if (localStorage.getItem(storageKey) !== storedTasks) {
+      showNotice("storageChanged");
+      return;
+    }
+    const now = new Date();
+    const json = JSON.stringify({ version: backupVersion, exportedAt: now.toISOString(), tasks });
+    const file = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(file);
+    try {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "MyTask-backup-" + localDateString(now) + ".json";
+      document.body.append(link);
+      try {
+        link.click();
+      } finally {
+        link.remove();
+      }
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    showNotice("exportSuccess");
+  } catch {
+    showNotice("exportError");
+  }
+}
+
+async function importTasks(file) {
+  if (file.size > maxBackupBytes) {
+    showNotice("fileTooLarge");
+    return;
+  }
+  let text;
+  try {
+    text = await file.text();
+  } catch {
+    showNotice("fileReadError");
+    return;
+  }
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    showNotice("invalidJson");
+    return;
+  }
+  const result = validateBackup(data);
+  if (result.error) {
+    showNotice(result.error, ...(result.args ?? []));
+    return;
+  }
+  if (!window.confirm(t("importConfirm", result.records.length))) return;
+  if (saveTasks(result.records)) {
+    setEditing(null);
+    currentFilter = "all";
+    for (const button of filters.querySelectorAll("button")) {
+      button.setAttribute("aria-pressed", String(button.dataset.filter === currentFilter));
+    }
+    render();
+    showNotice("importSuccess");
+  }
 }
 
 function createTaskRow(task, today) {
@@ -319,7 +504,9 @@ function render() {
   completed.textContent = tasks.filter(task => task.done).length;
   const visible = visibleTasks();
   const today = localDateString(new Date());
-  list.replaceChildren(...visible.map(task => createTaskRow(task, today)));
+  const rows = document.createDocumentFragment();
+  for (const task of visible) rows.append(createTaskRow(task, today));
+  list.replaceChildren(rows);
   empty.textContent = t(emptyKeys[currentFilter]);
   empty.hidden = visible.length > 0;
 }
@@ -351,7 +538,7 @@ form.addEventListener("submit", event => {
   const fields = { title, priority, dueDate, sourceLanguage, translations };
   const nextTasks = editingTask
     ? tasks.map(task => task === editingTask ? { ...task, ...fields } : task)
-    : [...tasks, { ...fields, done: false }];
+    : [...tasks, { id: newTaskId(), ...fields, done: false }];
 
   if (saveTasks(nextTasks)) {
     setEditing(null);
@@ -363,6 +550,20 @@ form.addEventListener("submit", event => {
 cancelButton.addEventListener("click", () => {
   setEditing(null);
   titleInput.focus();
+});
+
+exportButton.addEventListener("click", exportTasks);
+importButton.addEventListener("click", () => backupFile.click());
+backupFile.addEventListener("change", async () => {
+  const file = backupFile.files[0];
+  backupFile.value = "";
+  if (!file) return;
+  importButton.disabled = true;
+  try {
+    await importTasks(file);
+  } finally {
+    importButton.disabled = false;
+  }
 });
 
 filters.addEventListener("click", event => {

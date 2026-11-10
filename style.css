@@ -25,11 +25,12 @@ h2 { margin: 0; font-size: 1.2rem; }
 .stats strong { display: block; color: #2059bd; font-size: 2rem; line-height: 1.25; }
 .workspace { padding: clamp(16px, 4vw, 30px); }
 
-.list-header, .filters, .actions {
+.list-header, .filters, .actions, .backup-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+.backup-actions { flex-wrap: wrap; margin-top: 12px; }
 #form-title { font-size: 1rem; }
 #task-form { display: grid; gap: 8px; margin-top: 8px; }
 .form-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -92,6 +93,7 @@ li { display: flex; align-items: center; justify-content: space-between; gap: 12
 .delete:hover { background: #ffe4eb; }
 .empty { margin: 12px 0 0; padding: 26px 12px; text-align: center; color: #475e82; background: #f4f8ff; border-radius: 12px; }
 #notice { color: #a22e44; }
+#notice[data-success="true"] { color: #16603a; }
 
 @media (max-width: 540px) {
   main { padding: 28px 0; }
